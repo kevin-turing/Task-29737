@@ -1,164 +1,167 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>THEMIS & ARTEMIS Mission Visualization</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.3.0/d3.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
-    />
-    <style>
-      body {
+<head>
+<meta charset="UTF-8">
+<title>Shadow Clone Game</title>
+<style>
+    #gameBoard {
+        display: grid;
+        grid-template-columns: repeat(7, 40px);
+        grid-gap: 2px;
+    }
+    .cell {
+        width: 40px;
+        height: 40px;
+        background-color: #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .player, .clone, .orb, .obstacle {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+    }
+    .player { background-color: blue; }
+    .clone { background-color: darkblue; }
+    .orb { background-color: gold; }
+    .obstacle { background-color: red; }
+    #info {
+        margin-top: 10px;
         font-family: Arial, sans-serif;
-        background: #000;
-        color: #fff;
-        overflow: hidden;
-      }
-      #visualization {
-        width: 100vw;
-        height: 100vh;
-        position: relative;
-      }
-      .orbit {
-        stroke: #fff;
-        fill: none;
-        stroke-width: 1;
-      }
-      .probe {
-        fill: #ffd700;
-        stroke: #000;
-        stroke-width: 0.5;
-      }
-      .info-box {
-        position: absolute;
-        background: rgba(0, 0, 0, 0.8);
-        padding: 10px;
-        border-radius: 5px;
-        display: none;
-      }
-      .phase-button {
-        background-color: #4caf50; /* Green */
-        border: none;
-        color: white;
-        padding: 15px 32px;
-        text-align: center;
-        text-decoration: none;
-        display: inline-block;
-        font-size: 16px;
-        margin: 4px 2px;
-        cursor: pointer;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="visualization"></div>
-    <div id="info" class="info-box"></div>
-    <div style="position: absolute; bottom: 10px; left: 10px">
-      <button class="phase-button" onclick="showPhase('Tail')">
-        Tail Phase
-      </button>
-      <button class="phase-button" onclick="showPhase('Dawn')">
-        Dawn Phase
-      </button>
-      <button class="phase-button" onclick="showPhase('Dayside')">
-        Dayside Phase
-      </button>
-      <button class="phase-button" onclick="showPhase('Dusk')">
-        Dusk Phase
-      </button>
-    </div>
+    }
+</style>
+</head>
+<body>
 
-    <script>
-      const width = window.innerWidth,
-        height = window.innerHeight;
-      const svg = d3
-        .select('#visualization')
-        .append('svg')
-        .attr('width', width)
-        .attr('height', height);
+<div id="gameBoard"></div>
+<div id="info">
+    <p>Score: <span id="score">0</span> | Orbs Left: <span id="orbsLeft"></span> | Phase Shifts: <span id="phaseShifts">3</span></p>
+</div>
 
-      const phases = {
-        Tail: { apogee: 12, sector: 'nightside', mmsPosition: 'dawn' },
-        Dawn: { apogee: 12, sector: 'dawnside', mmsPosition: 'dayside' },
-        Dayside: { apogee: 12, sector: 'dayside', mmsPosition: 'dusk' },
-        Dusk: { apogee: 13, sector: 'duskside', mmsPosition: 'tail' },
-      };
+<script>
+    const board = document.getElementById('gameBoard');
+    const scoreDisplay = document.getElementById('score');
+    const orbsLeftDisplay = document.getElementById('orbsLeft');
+    const phaseShiftsDisplay = document.getElementById('phaseShifts');
+    
+    let playerPos = {x: 3, y: 0}, clonePos = {x: 3, y: 6}, score = 0, orbsLeft = 10, phaseShifts = 3;
+    let orbs = [], obstacles = [], cloneDelay = 3, moves = [];
 
-      function drawOrbits(phase) {
-        svg.selectAll('*').remove();
-        const phaseData = phases[phase];
-        const scale = d3
-          .scaleLinear()
-          .domain([0, 30])
-          .range([0, height / 2 - 50]);
-        const center = { x: width / 2, y: height / 2 };
+    // Initialize board
+    for(let i = 0; i < 49; i++) {
+        let cell = document.createElement('div');
+        cell.className = 'cell';
+        board.appendChild(cell);
+    }
 
-        // Earth
-        svg
-          .append('circle')
-          .attr('cx', center.x)
-          .attr('cy', center.y)
-          .attr('r', 20)
-          .attr('fill', 'blue');
+    function placeItem(item, className) {
+        let pos;
+        do {
+            pos = {x: Math.floor(Math.random() * 7), y: Math.floor(Math.random() * 7)};
+        } while (pos.x === playerPos.x && pos.y === playerPos.y || pos.x === clonePos.x && pos.y === clonePos.y);
+        item.push(pos);
+        document.querySelector(`[style*="grid-column: ${pos.x + 1}; grid-row: ${pos.y + 1};"]`).classList.add(className);
+    }
 
-        // Draw THEMIS orbits
-        for (let i = 0; i < 3; i++) {
-          const r = scale(phaseData.apogee + i * 0.5);
-          svg
-            .append('ellipse')
-            .attr('class', 'orbit')
-            .attr('cx', center.x)
-            .attr('cy', center.y)
-            .attr('rx', r)
-            .attr('ry', r * 0.5)
-            .attr('transform', `rotate(${i * 30}, ${center.x}, ${center.y})`);
-
-          // Probe position
-          svg
-            .append('circle')
-            .attr('class', 'probe')
-            .attr('cx', center.x + r * Math.cos((i * Math.PI) / 6))
-            .attr('cy', center.y + r * 0.5 * Math.sin((i * Math.PI) / 6))
-            .attr('r', 5)
-            .on('mouseover', function () {
-              showInfo(phase, i);
-            })
-            .on('mouseout', hideInfo);
+    function movePlayer(dir) {
+        let newPos = { ...playerPos };
+        switch(dir) {
+            case 'ArrowUp': if (newPos.y > 0) newPos.y--; break;
+            case 'ArrowDown': if (newPos.y < 6) newPos.y++; break;
+            case 'ArrowLeft': if (newPos.x > 0) newPos.x--; break;
+            case 'ArrowRight': if (newPos.x < 6) newPos.x++; break;
         }
+        if (newPos.x !== playerPos.x || newPos.y !== playerPos.y) {
+            moves.push(dir);
+            updatePosition(newPos, 'player');
+        }
+    }
 
-        // MMS position indicator
-        svg
-          .append('text')
-          .attr('x', width - 100)
-          .attr('y', 50)
-          .text(`MMS: ${phaseData.mmsPosition} sector`)
-          .attr('fill', 'white');
-      }
+    function updatePosition(newPos, who) {
+        let oldPos = who === 'player' ? playerPos : clonePos;
+        let newCell = document.querySelector(`[style*="grid-column: ${newPos.x + 1}; grid-row: ${newPos.y + 1};"]`);
+        let oldCell = document.querySelector(`[style*="grid-column: ${oldPos.x + 1}; grid-row: ${oldPos.y + 1};"]`);
+        
+        oldCell.classList.remove(who);
+        newCell.classList.add(who);
 
-      function showInfo(phase, probeIndex) {
-        d3.select('#info')
-          .style('display', 'block')
-          .html(
-            `Phase: ${phase}<br>Probe ${probeIndex + 3}: Studying ${
-              phaseData.sector
-            } interactions`
-          )
-          .style('left', d3.event.pageX + 10 + 'px')
-          .style('top', d3.event.pageY - 28 + 'px');
-      }
+        if (who === 'player') {
+            playerPos = newPos;
+            checkOrbCollision(playerPos);
+            checkObstacleCollision(playerPos, true);
+        } else {
+            clonePos = newPos;
+            checkObstacleCollision(clonePos, false);
+        }
+    }
 
-      function hideInfo() {
-        d3.select('#info').style('display', 'none');
-      }
+    function checkOrbCollision(pos) {
+        let orbIndex = orbs.findIndex(o => o.x === pos.x && o.y === pos.y);
+        if (orbIndex > -1) {
+            score++;
+            orbsLeft--;
+            scoreDisplay.textContent = score;
+            orbsLeftDisplay.textContent = orbsLeft;
+            document.querySelector(`[style*="grid-column: ${pos.x + 1}; grid-row: ${pos.y + 1};"]`).classList.remove('orb');
+            orbs.splice(orbIndex, 1);
+            if (orbsLeft === 0) endGame(true);
+        }
+    }
 
-      function showPhase(phase) {
-        drawOrbits(phase);
-      }
+    function checkObstacleCollision(pos, isPlayer) {
+        if (obstacles.some(o => o.x === pos.x && o.y === pos.y)) {
+            if (isPlayer) alert('You hit an obstacle!'); // Simplified reaction
+            else alert('Your clone hit an obstacle!'); // Simplified reaction
+        }
+    }
 
-      // Initial draw
-      drawOrbits('Tail');
-    </script>
-  </body>
+    function cloneMove() {
+        if (moves.length > cloneDelay) {
+            let move = moves.shift();
+            let newPos = { ...clonePos };
+            movePlayer(move, newPos);
+            updatePosition(newPos, 'clone');
+        }
+    }
+
+    function phaseShift() {
+        if (phaseShifts > 0) {
+            phaseShifts--;
+            phaseShiftsDisplay.textContent = phaseShifts;
+            cloneDelay += 2; // Increase delay for clone movement
+        }
+    }
+
+    function endGame(win = false) {
+        if (win) alert('You won! All orbs collected.');
+        else alert('Game Over! You collided with your clone.');
+        // Reset game logic here
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            movePlayer(e.key);
+        } else if (e.key === ' ' && phaseShifts > 0) {
+            phaseShift();
+        }
+    });
+
+    // Game loop
+    function gameLoop() {
+        if (orbsLeft > 0) {
+            if (Math.random() < 0.05) placeItem(obstacles, 'obstacle'); // 5% chance for obstacle
+            if (orbs.length < orbsLeft && Math.random() < 0.2) placeItem(orbs, 'orb'); // 20% chance for orb if not maxed
+        }
+        cloneMove();
+        if (playerPos.x === clonePos.x && playerPos.y === clonePos.y) {
+            endGame();
+        }
+        setTimeout(gameLoop, 1000); // Adjust speed as needed
+    }
+
+    gameLoop(); // Start the game
+</script>
+
+</body>
 </html>

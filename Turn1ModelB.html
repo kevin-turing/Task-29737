@@ -1,1 +1,163 @@
-T1MB
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shadow Clone Game</title>
+<style>
+    #game-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 40px);
+        grid-gap: 2px;
+        width: 288px;
+        margin: auto;
+    }
+    .cell {
+        width: 40px;
+        height: 40px;
+        border: 1px solid #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .player { background-color: blue; }
+    .clone { background-color: lightblue; }
+    .orb { background-color: yellow; }
+    .obstacle { background-color: red; }
+    #ui {
+        text-align: center;
+        margin-top: 20px;
+    }
+</style>
+</head>
+<body>
+
+<div id="game-grid"></div>
+<div id="ui">
+    <div>Score: <span id="score">0</span></div>
+    <div>Phase Shifts Left: <span id="phase-shifts">3</span></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const grid = document.getElementById('game-grid');
+    const scoreDisplay = document.getElementById('score');
+    const phaseShiftsDisplay = document.getElementById('phase-shifts');
+    let score = 0;
+    let phaseShifts = 3;
+    let playerPos = [3, 3];
+    let clonePos = [3, 3];
+    let cloneMoves = [];
+    const totalOrbs = 10;
+    let orbsCollected = 0;
+    let gameOver = false;
+
+    // Initialize grid
+    for(let i = 0; i < 49; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        grid.appendChild(cell);
+    }
+
+    const cells = document.querySelectorAll('.cell');
+
+    function updateCell([x, y], type) {
+        const index = y * 7 + x;
+        cells[index].className = `cell ${type}`;
+    }
+
+    function placeItem(type) {
+        let x, y;
+        do {
+            x = Math.floor(Math.random() * 7);
+            y = Math.floor(Math.random() * 7);
+        } while(cells[y * 7 + x].className !== 'cell');
+        updateCell([x, y], type);
+    }
+
+    function movePlayer(dir) {
+        if(gameOver) return;
+
+        let [x, y] = playerPos;
+        switch(dir) {
+            case 'up': if(y > 0) y--; break;
+            case 'down': if(y < 6) y++; break;
+            case 'left': if(x > 0) x--; break;
+            case 'right': if(x < 6) x++; break;
+        }
+        
+        if(cells[y * 7 + x].className.includes('obstacle')) return;
+        
+        cloneMoves.push(dir);
+        if(cloneMoves.length > 2) cloneMoves.shift();
+        
+        updateCell(playerPos, 'cell');
+        playerPos = [x, y];
+        updateCell(playerPos, 'player');
+
+        if(cloneMoves.length === 2) {
+            moveClone();
+        }
+
+        checkCollision();
+    }
+
+    function moveClone() {
+        const move = cloneMoves[0];
+        let [x, y] = clonePos;
+        switch(move) {
+            case 'up': if(y > 0) y--; break;
+            case 'down': if(y < 6) y++; break;
+            case 'left': if(x > 0) x--; break;
+            case 'right': if(x < 6) x++; break;
+        }
+        
+        if(cells[y * 7 + x].className.includes('obstacle')) return;
+
+        updateCell(clonePos, 'cell');
+        clonePos = [x, y];
+        updateCell(clonePos, 'clone');
+    }
+
+    function checkCollision() {
+        if(JSON.stringify(playerPos) === JSON.stringify(clonePos)) {
+            gameOver = true;
+            alert('Game Over! You collided with your clone.');
+        } else if(cells[playerPos[1] * 7 + playerPos[0]].className.includes('orb')) {
+            score++;
+            orbsCollected++;
+            scoreDisplay.textContent = score;
+            cells[playerPos[1] * 7 + playerPos[0]].className = 'cell';
+            if(orbsCollected < totalOrbs) placeItem('orb');
+            if(orbsCollected === totalOrbs) {
+                gameOver = true;
+                alert('You Win! All orbs collected.');
+            }
+        }
+    }
+
+    function phaseShift() {
+        if(phaseShifts > 0) {
+            phaseShifts--;
+            phaseShiftsDisplay.textContent = phaseShifts;
+            cloneMoves = []; // Reset clone's moves
+        }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if(e.key === ' ') phaseShift();
+        else if(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key)) {
+            const dirMap = {ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', 'w': 'up', 'a': 'left', 's': 'down', 'd': 'right'};
+            movePlayer(dirMap[e.key]);
+        }
+    });
+
+    // Initial setup
+    updateCell(playerPos, 'player');
+    updateCell(clonePos, 'clone');
+    for(let i = 0; i < 3; i++) placeItem('obstacle');
+    for(let i = 0; i < 3; i++) placeItem('orb');
+});
+</script>
+
+</body>
+</html>
